@@ -1,7 +1,24 @@
+/// EVMJIT C Interface
+///
+/// High level design rules
+/// 1. Pass function arguments and results by value.
+///    This rule comes from modern C++ and tries to avoid costly alias analysis
+///    needed for optimization. As the result we have a lots of complex structs
+///    and unions. And variable sized arrays of bytes cannot be passed by copy.
+/// 2. The EVM operates on integers so it prefers values to be host-endian.
+///    On the other hand, LLVM can generate good code for byte swaping.
+///    The interface also tries to match host application "natural" endianess.
+///    I would like to know what endianess you use and where.
+
 #include <stdint.h>  // Definition of uint64_t.
 #include <stddef.h>  // Definition of size_t.
 
-/// 32 bytes of data representing host-endian 256-bit integer.
+/// Host-endian 256-bit integer.
+///
+/// 32 bytes of data representing host-endian (that means little-endian almost
+/// all the time) 256-bit integer. This applies to the words[] order also.
+/// words[0] contains the 64 lowest precision bits, words[3] constains the 64
+/// highest precision bits.
 struct evmjit_uint256 {
     uint64_t words[4];
 };
@@ -30,13 +47,22 @@ enum evmjit_return_code {
 
 /// Complex struct representing execution result.
 struct evmjit_result {
-    enum evmjit_return_code return_code;  ///< Success? OOG? Selfdestruction?
+    /// Success? OOG? Selfdestruction?
+    enum evmjit_return_code return_code;
     union {
         /// In case of successful execution this substruct is filled.
         struct {
-            struct evmjit_bytes_view output_data;  ///< Ref to output data.
-            int64_t gas;                           ///< Gas left.
-            void* internal_memory;                 ///< For internal use.
+            /// Rerefence to output data. The memory containing the output data
+            /// is owned by EVMJIT and is freed with evmjit_destroy_result().
+            struct evmjit_bytes_view output_data;
+
+            /// Gas left after execution. Non-negative.
+            /// TODO: We could squeeze gas_left and return_code together.
+            int64_t gas_left;
+
+            /// Pointer to EVMJIT-owned memory.
+            /// @see output_data.
+            void* internal_memory;
         };
         /// In case of selfdestruction here is the address where money goes.
         struct evmjit_hash160 selfdestruct_beneficiary;
@@ -66,6 +92,8 @@ enum evmjit_query_key {
 /// application.
 struct evmjit_env;
 
+
+/// Query callback functions. Merging them into single one is considered.
 typedef uint64_t (*evmjit_query_uint64_func)(struct evmjit_env*,
                                              enum evmjit_query_key);
 
@@ -77,6 +105,10 @@ typedef struct evmjit_uint256 (*evmjit_query_uint256_func)(
 typedef struct evmjit_bytes_view (
     *evmjit_query_bytes_func)(struct evmjit_env*, enum evmjit_query_key);
 
+/// Callback function for modifying the storage.
+///
+/// Endianness: host-endianness is used because C++'s storage API uses big ints,
+///             not bytes. What do you use?
 typedef void (*evmjit_store_storage_func)(struct evmjit_env*,
                                           struct evmjit_uint256 key,
                                           struct evmjit_uint256 value);
@@ -92,10 +124,10 @@ struct evmjit_instance;
 
 /// Creates JIT instance.
 ///
-/// Creates new JIT instance. Each instance must be destroy in
+/// Creates new JIT instance. Each instance must be destroyed in
 /// evmjit_destroy_instance() function.
 /// Single instance is thread-safe and can be shared by many threads. The host
-/// application can create as many instances as wanted by there are no benefits
+/// application can create as many instances as wanted but there are no benefits
 /// of this strategy as instances will not share generated code.
 ///
 /// @params Pointers to callback functions.
