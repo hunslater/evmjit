@@ -113,6 +113,38 @@ typedef void (*evmjit_store_storage_func)(struct evmjit_env*,
                                           struct evmjit_uint256 key,
                                           struct evmjit_uint256 value);
 
+enum evmjit_call_kind {
+    evmjit_call,
+    evmjit_delegatecall,
+    evmjit_callcode,
+
+    /// Request CREATE. Semantic of some params changes.
+    evmjit_create
+};
+
+/// Pointer to the callback function supporting EVM calls.
+///
+/// @param kind         The kind of call-like opcode requested.
+/// @param gas          The amound of gas for the call.
+/// @param address      The address of a contract to be called. Ignored in case
+///                     of CREATE.
+/// @param value        The value sent to the callee. The endowment in case of
+///                     CREATE.
+/// @param input_data   The call input data or the create init code.
+/// @param output_data  The reference to the memory where the call output is to
+///                     be copied. In case of create, the memory is guaranteed
+///                     to be at least 160 bytes to hold the address of the
+///                     created contract.
+/// @return      If non-negative - the amount of gas left,
+///              If negative - an exception ocurred during the call/create.
+///              There is no need to set 0 address in the output in this case.
+typedef int64_t (*evmjit_call_func)(enum evmjit_call_kind kind,
+                                    int64_t gas,
+                                    struct evmjit_hash160 address,
+                                    struct evmjit_uint256 value,
+                                    struct evmjit_bytes_view input_data,
+                                    struct evmjit_bytes_view output_data);
+
 
 /// Returns EVMJIT software version.
 ///
@@ -131,11 +163,12 @@ struct evmjit_instance;
 /// of this strategy as instances will not share generated code.
 ///
 /// @params Pointers to callback functions.
-///         TODO: call, create, log.
+///         TODO: log.
 struct evmjit_instance* evmjit_create_instance(evmjit_query_uint64_func,
                                                evmjit_query_uint256_func,
                                                evmjit_query_bytes_func,
-                                               evmjit_store_storage_func);
+                                               evmjit_store_storage_func,
+                                               evmjit_call_func);
 
 /// Destroys JIT instance.
 void evmjit_destroy_instance(struct evmjit_instance*);
@@ -167,8 +200,7 @@ void evmjit_set_option(struct evmjit_instance*, int key, int value);
 /// @param code        Reference to the bytecode to be executed.
 /// @param gas         Gas for execution. Min 0, max 2^63-1.
 /// @param input_data  Reference to the call input data.
-/// @param value       Call value. TODO: Does the VM need to know what kind of
-///                    value it is?
+/// @param value       Call value.
 /// @return            All execution results.
 struct evmjit_result evmjit_execute(struct evmjit_instance* instance,
                                     struct evmjit_hash256 code_hash,
@@ -181,35 +213,38 @@ struct evmjit_result evmjit_execute(struct evmjit_instance* instance,
 void evmjit_destroy_result(struct evmjit_result);
 
 
+/// EXAMPLE
+
+struct evmjit_uint256 balance(struct evmjit_env*,
+                              struct evmjit_hash256 address);
+
+uint64_t get_uint64(struct evmjit_env * env, enum evmjit_query_key key) {
+    (void)env;
+    switch (key) {
+    case evmjit_query_gas_price: return 1;
+    default: return 0;
+    }
+}
+
+struct evmjit_uint256 get_uint256(struct evmjit_env * env,
+                                  enum evmjit_query_key key,
+                                  struct evmjit_uint256 arg) {
+    switch (key) {
+    case evmjit_query_balance: {
+        // Interpret the argument as hash/bytes/BE number.
+        // EVMJIT is aware and will do the byte swap for us.
+        struct evmjit_hash256 address = *(struct evmjit_hash256*)&arg;
+        return balance(env, address);
+    }
+    default: return arg;
+    }
+}
+
 /// Example how the API is supposed to be used.
 void example() {
-    struct evmjit_uint256 balance(struct evmjit_env*,
-                                  struct evmjit_hash256 address);
-
-    uint64_t get_uint64(struct evmjit_env * env, enum evmjit_query_key key) {
-        (void)env;
-        switch (key) {
-        case evmjit_query_gas_price: return 1;
-        default: return 0;
-        }
-    }
-
-    struct evmjit_uint256 get_uint256(struct evmjit_env * env,
-                                      enum evmjit_query_key key,
-                                      struct evmjit_uint256 arg) {
-        switch (key) {
-        case evmjit_query_balance: {
-            // Interpret the argument as hash/bytes/BE number.
-            // EVMJIT is aware and will do the byte swap for us.
-            struct evmjit_hash256 address = *(struct evmjit_hash256*)&arg;
-            return balance(env, address);
-        }
-        default: return arg;
-        }
-    }
 
     struct evmjit_instance* jit =
-        evmjit_create_instance(get_uint64, get_uint256, 0, 0);
+        evmjit_create_instance(get_uint64, get_uint256, 0, 0, 0);
 
     char const code[] = "exec()";
     struct evmjit_bytes_view code_view = {code, sizeof(code)};
