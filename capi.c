@@ -33,9 +33,15 @@ struct evmjit_hash256 {
     _Alignas(8) char bytes[32];
 };
 
-/// Reference to memory.
+/// Reference to non-mutable memory.
 struct evmjit_bytes_view {
     char const* bytes;
+    size_t size;
+};
+
+/// Reference to mutable memory.
+struct evmjit_mutable_bytes_view {
+    char* bytes;
     size_t size;
 };
 
@@ -143,7 +149,7 @@ typedef int64_t (*evmjit_call_func)(enum evmjit_call_kind kind,
                                     struct evmjit_hash160 address,
                                     struct evmjit_uint256 value,
                                     struct evmjit_bytes_view input_data,
-                                    struct evmjit_bytes_view output_data);
+                                    struct evmjit_mutable_bytes_view output_data);
 
 
 /// Returns EVMJIT software version.
