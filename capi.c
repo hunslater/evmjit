@@ -151,13 +151,22 @@ typedef int64_t (*evmjit_call_func)(enum evmjit_call_kind kind,
                                     struct evmjit_bytes_view input_data,
                                     struct evmjit_mutable_bytes_view output_data);
 
+/// Pointer to the callback function supporting EVM logs.
+///
+/// @param log_data    Reference to memory containing non-indexed log data.
+/// @param num_topics  Number of topics added to the log. Valid values 0-4.
+/// @param topics      Pointer to an array containing `num_topics` topics.
+typedef void (*evmjit_log_func)(struct evmjit_bytes_view log_data,
+                                size_t num_topics,
+                                struct evmjit_hash256 topics[]);
+
 
 /// Returns EVMJIT software version.
 ///
 /// TODO: Is int a good type? E.g. version 1.2.30 being 10230?
 int evmjit_get_version();
 
-
+/// Opaque type representing a JIT instance.
 struct evmjit_instance;
 
 /// Creates JIT instance.
@@ -169,12 +178,12 @@ struct evmjit_instance;
 /// of this strategy as instances will not share generated code.
 ///
 /// @params Pointers to callback functions.
-///         TODO: log.
 struct evmjit_instance* evmjit_create_instance(evmjit_query_uint64_func,
                                                evmjit_query_uint256_func,
                                                evmjit_query_bytes_func,
                                                evmjit_store_storage_func,
-                                               evmjit_call_func);
+                                               evmjit_call_func,
+                                               evmjit_log_func);
 
 /// Destroys JIT instance.
 void evmjit_destroy_instance(struct evmjit_instance*);
@@ -219,7 +228,7 @@ struct evmjit_result evmjit_execute(struct evmjit_instance* instance,
 void evmjit_destroy_result(struct evmjit_result);
 
 
-/// EXAMPLE
+/// EXAMPLE ////////////////////////////////////////////////////////////////////
 
 struct evmjit_uint256 balance(struct evmjit_env*,
                               struct evmjit_hash256 address);
@@ -250,7 +259,7 @@ struct evmjit_uint256 get_uint256(struct evmjit_env * env,
 void example() {
 
     struct evmjit_instance* jit =
-        evmjit_create_instance(get_uint64, get_uint256, 0, 0, 0);
+        evmjit_create_instance(get_uint64, get_uint256, 0, 0, 0, 0);
 
     char const code[] = "exec()";
     struct evmjit_bytes_view code_view = {code, sizeof(code)};
