@@ -95,13 +95,18 @@ enum evmjit_query_key {
 /// application.
 struct evmjit_env;
 
-/// Represents variant type of possible results from the query function.
-/// TODO: Consider making it more generic nad use it also as a type of the
-///       query fuction argument.
-union evmjit_query_result {
+/// Variant type to represent possible types of values used in EVMJIT.
+///
+/// Type-safety is lost around the code that uses this type. We should have
+/// complete set of unit tests covering all possible cases.
+/// The size of the type is 64 bytes and should fit in single cache line.
+union evmjit_variant {
     uint64_t uint64;
     struct evmjit_uint256 uint256;
-    struct evmjit_hash160 address;
+    struct {
+        char address_padding[12];  // Pad address to lower bytes of full hash.
+        struct evmjit_hash160 address;
+    };
     struct evmjit_bytes_view bytes;
 };
 
@@ -126,13 +131,13 @@ union evmjit_query_result {
 /// gas limit       |          | uint64
 /// number          |          | uint64?
 /// timestamp       |          | uint64?
-/// code by address | uint256? | bytes
-/// balance         | uint256? | uint256
+/// code by address | address  | bytes
+/// balance         | address  | uint256
 /// storage         | uint256  | uint256?
-typedef union evmjit_query_result (*evmjit_query_func)(
+typedef union evmjit_variant (*evmjit_query_func)(
     struct evmjit_env* env,
     enum evmjit_query_key key,
-    struct evmjit_uint256 arg);
+    union evmjit_variant arg);
 
 
 /// Callback function for modifying the storage.
@@ -253,21 +258,18 @@ void evmjit_destroy_result(struct evmjit_result);
 /// EXAMPLE ////////////////////////////////////////////////////////////////////
 
 struct evmjit_uint256 balance(struct evmjit_env*,
-                              struct evmjit_hash256 address);
+                              struct evmjit_hash160 address);
 
-union evmjit_query_result query(struct evmjit_env* env, enum evmjit_query_key key, struct evmjit_uint256 arg) {
-    union evmjit_query_result result;
+union evmjit_variant query(struct evmjit_env* env, enum evmjit_query_key key, union evmjit_variant arg) {
+    union evmjit_variant result;
     switch (key) {
     case evmjit_query_gas_limit:
         result.uint64 = 314;
         break;
 
-    case evmjit_query_balance: {
-        // Interpret the argument as hash/bytes/BE number.
-        // EVMJIT is aware and will do the byte swap for us.
-        struct evmjit_hash256 address = *(struct evmjit_hash256*)&arg;
-        result.uint256 = balance(env, address);
-    }
+    case evmjit_query_balance:
+        result.uint256 = balance(env, arg.address);
+        break;
 
     default: result.uint64 = 0; break;
     }
