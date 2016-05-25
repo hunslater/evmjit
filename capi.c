@@ -85,12 +85,9 @@ enum evmjit_query_key {
     evmjit_query_gas_limit,
     evmjit_query_number,
     evmjit_query_timestamp,
-    evmjit_query_code_by_hash,  // For future use :)
     evmjit_query_code_by_address,
-
     evmjit_query_balance,
-
-    evmjit_storage_load,
+    evmjit_query_storage,
 };
 
 
@@ -98,18 +95,45 @@ enum evmjit_query_key {
 /// application.
 struct evmjit_env;
 
+/// Represents variant type of possible results from the query function.
+/// TODO: Consider making it more generic nad use it also as a type of the
+///       query fuction argument.
+union evmjit_query_result {
+    uint64_t uint64;
+    struct evmjit_uint256 uint256;
+    struct evmjit_hash160 address;
+    struct evmjit_bytes_view bytes;
+};
 
-/// Query callback functions. Merging them into single one is considered.
-typedef uint64_t (*evmjit_query_uint64_func)(struct evmjit_env*,
-                                             enum evmjit_query_key);
-
-typedef struct evmjit_uint256 (*evmjit_query_uint256_func)(
-    struct evmjit_env*,
-    enum evmjit_query_key,
+/// Query callback function.
+///
+/// This callback function is used by the EVMJIT to query the host application
+/// about additional data required to execute EVM code.
+/// @param env  Pointer to execution environment managed by the host application.
+/// @param key  The kind of the query. See evmjit_query_key and defails below.
+/// @param arg  Addicional argument to the query. It has defined value only for
+///             the subset of query keys.
+///
+/// # Queries
+/// Key             | Arg      | Expected result (see members of evmjit_query_result union)
+/// --------------- | -------- | ---------------
+/// gas price       |          | uint256
+/// address         |          | address
+/// caller          |          | address
+/// origin          |          | address
+/// coinbase        |          | address
+/// difficulty      |          | uint256
+/// gas limit       |          | uint64
+/// number          |          | uint64?
+/// timestamp       |          | uint64?
+/// code by address | uint256? | bytes
+/// balance         | uint256? | uint256
+/// storage         | uint256  | uint256?
+typedef union evmjit_query_result (*evmjit_query_func)(
+    struct evmjit_env* env,
+    enum evmjit_query_key key,
     struct evmjit_uint256 arg);
 
-typedef struct evmjit_bytes_view (
-    *evmjit_query_bytes_func)(struct evmjit_env*, enum evmjit_query_key);
 
 /// Callback function for modifying the storage.
 ///
@@ -178,9 +202,7 @@ struct evmjit_instance;
 /// of this strategy as instances will not share generated code.
 ///
 /// @params Pointers to callback functions.
-struct evmjit_instance* evmjit_create_instance(evmjit_query_uint64_func,
-                                               evmjit_query_uint256_func,
-                                               evmjit_query_bytes_func,
+struct evmjit_instance* evmjit_create_instance(evmjit_query_func,
                                                evmjit_store_storage_func,
                                                evmjit_call_func,
                                                evmjit_log_func);
@@ -233,33 +255,30 @@ void evmjit_destroy_result(struct evmjit_result);
 struct evmjit_uint256 balance(struct evmjit_env*,
                               struct evmjit_hash256 address);
 
-uint64_t get_uint64(struct evmjit_env * env, enum evmjit_query_key key) {
-    (void)env;
+union evmjit_query_result query(struct evmjit_env* env, enum evmjit_query_key key, struct evmjit_uint256 arg) {
+    union evmjit_query_result result;
     switch (key) {
-    case evmjit_query_gas_price: return 1;
-    default: return 0;
-    }
-}
+    case evmjit_query_gas_limit:
+        result.uint64 = 314;
+        break;
 
-struct evmjit_uint256 get_uint256(struct evmjit_env * env,
-                                  enum evmjit_query_key key,
-                                  struct evmjit_uint256 arg) {
-    switch (key) {
     case evmjit_query_balance: {
         // Interpret the argument as hash/bytes/BE number.
         // EVMJIT is aware and will do the byte swap for us.
         struct evmjit_hash256 address = *(struct evmjit_hash256*)&arg;
-        return balance(env, address);
+        result.uint256 = balance(env, address);
     }
-    default: return arg;
+
+    default: result.uint64 = 0; break;
     }
+    return result;
 }
 
 /// Example how the API is supposed to be used.
 void example() {
 
     struct evmjit_instance* jit =
-        evmjit_create_instance(get_uint64, get_uint256, 0, 0, 0, 0);
+        evmjit_create_instance(query, 0, 0, 0);
 
     char const code[] = "exec()";
     struct evmjit_bytes_view code_view = {code, sizeof(code)};
