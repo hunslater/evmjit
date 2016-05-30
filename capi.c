@@ -1,6 +1,6 @@
 /// EVMJIT C Interface
 ///
-/// High level design rules
+/// ## High level design rules
 /// 1. Pass function arguments and results by value.
 ///    This rule comes from modern C++ and tries to avoid costly alias analysis
 ///    needed for optimization. As the result we have a lots of complex structs
@@ -9,6 +9,9 @@
 ///    On the other hand, LLVM can generate good code for byte swaping.
 ///    The interface also tries to match host application "natural" endianess.
 ///    I would like to know what endianess you use and where.
+///
+/// @defgroup EVMJITCAPI
+/// @{
 
 #include <stdint.h>  // Definition of uint64_t.
 #include <stddef.h>  // Definition of size_t.
@@ -63,7 +66,7 @@ struct evmjit_result {
             struct evmjit_bytes_view output_data;
 
             /// Gas left after execution. Non-negative.
-            /// TODO: We could squeeze gas_left and return_code together.
+            /// @todo We could squeeze gas_left and return_code together.
             int64_t gas_left;
 
             /// Pointer to EVMJIT-owned memory.
@@ -192,7 +195,7 @@ typedef void (*evmjit_log_func)(struct evmjit_bytes_view log_data,
 
 /// Returns EVMJIT software version.
 ///
-/// TODO: Is int a good type? E.g. version 1.2.30 being 10230?
+/// @todo Is int a good type? E.g. version 1.2.30 being 10230?
 int evmjit_get_version();
 
 /// Opaque type representing a JIT instance.
@@ -224,9 +227,9 @@ void evmjit_destroy_instance(struct evmjit_instance*);
 /// - code cache behavior: on, off, read-only, ...
 /// - optimizations,
 ///
-/// TODO: int is probably not the best choice for params type. Would a c-string
+/// @todo int is probably not the best choice for params type. Would a c-string
 ///       as char const* be better?
-/// TODO: Is there a need for evmjit_get_option()?
+/// @todo Is there a need for evmjit_get_option()?
 void evmjit_set_option(struct evmjit_instance*, int key, int value);
 
 
@@ -254,6 +257,7 @@ struct evmjit_result evmjit_execute(struct evmjit_instance* instance,
 /// Destroys execution result.
 void evmjit_destroy_result(struct evmjit_result);
 
+/// @}
 
 /// EXAMPLE ////////////////////////////////////////////////////////////////////
 
