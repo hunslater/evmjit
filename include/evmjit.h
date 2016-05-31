@@ -13,7 +13,7 @@
 /// @defgroup evmjit
 /// @{
 
-#include <stdint.h>   // Definition of uint64_t.
+#include <stdint.h>   // Definition of int64_t, uint64_t.
 #include <stddef.h>   // Definition of size_t.
 #include <stdbool.h>  // Definition of bool.
 
@@ -24,11 +24,13 @@
 /// words[0] contains the 64 lowest precision bits, words[3] constains the 64
 /// highest precision bits.
 struct evmjit_uint256 {
+    /// The 4 64-bit words of the integer. Memory aligned to 8 bytes.
     uint64_t words[4];
 };
 
 /// 160-bit hash suitable for keeping an Ethereum address.
 struct evmjit_hash160 {
+    /// The 20 bytes of the hash.
     char bytes[20];
 };
 
@@ -38,25 +40,27 @@ struct evmjit_hash160 {
 /// 32 bytes of data. For EVM that means big-endian 256-bit integer. Values of
 /// this type are converted to host-endian values in EVMJIT.
 struct evmjit_hash256 {
+    /// The 32 bytes of the integer/hash. Memory aligned to 8 bytes.
     _Alignas(8) char bytes[32];
 };
 
 /// Reference to non-mutable memory.
 struct evmjit_bytes_view {
-    char const* bytes;
-    size_t size;
+    char const* bytes;  ///< Pointer the begining of the memory.
+    size_t size;        ///< The memory size.
 };
 
 /// Reference to mutable memory.
 struct evmjit_mutable_bytes_view {
-    char* bytes;
-    size_t size;
+    char* bytes;        ///< Pointer the begining of the mutable memory.
+    size_t size;        ///< The memory size.
 };
 
+/// The EVM execution return code.
 enum evmjit_return_code {
-    evmjit_return = 0,
-    evmjit_selfdestruct = 1,
-    evmjit_exception = -1,
+    evmjit_return = 0,        ///< The execution ended by STOP or RETURN.
+    evmjit_selfdestruct = 1,  ///< The execution ended by SELFDESTRUCT.
+    evmjit_exception = -1,    ///< The execution ended with an exception.
 };
 
 /// Complex struct representing execution result.
@@ -83,19 +87,20 @@ struct evmjit_result {
     };
 };
 
+/// The query callback key.
 enum evmjit_query_key {
-    evmjit_query_gas_price,
-    evmjit_query_address,
-    evmjit_query_caller,
-    evmjit_query_origin,
-    evmjit_query_coinbase,
-    evmjit_query_difficulty,
-    evmjit_query_gas_limit,
-    evmjit_query_number,
-    evmjit_query_timestamp,
-    evmjit_query_code_by_address,
-    evmjit_query_balance,
-    evmjit_query_storage,
+    evmjit_query_address,         ///< Address of the contract for ADDRESS.
+    evmjit_query_caller,          ///< Message sender address for CALLER.
+    evmjit_query_origin,          ///< Transaction origin address for ORIGIN.
+    evmjit_query_gas_price,       ///< Transaction gas price for GASPRICE.
+    evmjit_query_coinbase,        ///< Current block miner address for COINBASE.
+    evmjit_query_difficulty,      ///< Current block difficulty for DIFFICULTY.
+    evmjit_query_gas_limit,       ///< Current block gas limit for GASLIMIT.
+    evmjit_query_number,          ///< Current block number for NUMBER.
+    evmjit_query_timestamp,       ///< Current block timestamp for TIMESTAMP.
+    evmjit_query_code_by_address, ///< Code by an address for EXTCODE/SIZE.
+    evmjit_query_balance,         ///< Balance of a given address for BALANCE.
+    evmjit_query_storage,         ///< Storage value of a given key for SLOAD.
 };
 
 
@@ -109,12 +114,22 @@ struct evmjit_env;
 /// complete set of unit tests covering all possible cases.
 /// The size of the type is 64 bytes and should fit in single cache line.
 union evmjit_variant {
-    uint64_t uint64;
+    /// A host-endian 64-bit integer.
+    int64_t int64;
+
+    /// A host-endian 256-bit integer.
     struct evmjit_uint256 uint256;
+
     struct {
-        char address_padding[12];  // Pad address to lower bytes of full hash.
+        /// Additional padding to align the evmjit_variant::address with lower
+        /// bytes of a full 256-bit hash.
+        char address_padding[12];
+
+        /// An Ethereum address.
         struct evmjit_hash160 address;
     };
+
+    /// A memory reference.
     struct evmjit_bytes_view bytes;
 };
 
@@ -128,21 +143,21 @@ union evmjit_variant {
 /// @param arg  Addicional argument to the query. It has defined value only for
 ///             the subset of query keys.
 ///
-/// # Queries
-/// Key             | Arg      | Expected result (see evmjit_query_result union)
-/// --------------- | -------- | ---------------
-/// gas price       |          | uint256
-/// address         |          | address
-/// caller          |          | address
-/// origin          |          | address
-/// coinbase        |          | address
-/// difficulty      |          | uint256
-/// gas limit       |          | uint64
-/// number          |          | uint64?
-/// timestamp       |          | uint64?
-/// code by address | address  | bytes
-/// balance         | address  | uint256
-/// storage         | uint256  | uint256?
+/// ## Types of queries
+/// Key                            | Arg      | Expected result
+/// ------------------------------ | -------- | -------------------------------
+/// ::evmjit_query_gas_price       |          | evmjit_variant::uint256
+/// ::evmjit_query_address         |          | evmjit_variant::address
+/// ::evmjit_query_caller          |          | evmjit_variant::address
+/// ::evmjit_query_origin          |          | evmjit_variant::address
+/// ::evmjit_query_coinbase        |          | evmjit_variant::address
+/// ::evmjit_query_difficulty      |          | evmjit_variant::uint256
+/// ::evmjit_query_gas_limit       |          | evmjit_variant::int64
+/// ::evmjit_query_number          |          | evmjit_variant::int64?
+/// ::evmjit_query_timestamp       |          | evmjit_variant::int64?
+/// ::evmjit_query_code_by_address | evmjit_variant::address  | evmjit_variant::bytes
+/// ::evmjit_query_balance         | evmjit_variant::address  | evmjit_variant::uint256
+/// ::evmjit_query_storage         | evmjit_variant::uint256  | evmjit_variant::uint256?
 typedef union evmjit_variant (*evmjit_query_func)(struct evmjit_env* env,
                                                   enum evmjit_query_key key,
                                                   union evmjit_variant arg);
@@ -156,13 +171,12 @@ typedef void (*evmjit_store_storage_func)(struct evmjit_env*,
                                           struct evmjit_uint256 key,
                                           struct evmjit_uint256 value);
 
+/// The kind of call-like instruction.
 enum evmjit_call_kind {
-    evmjit_call,
-    evmjit_delegatecall,
-    evmjit_callcode,
-
-    /// Request CREATE. Semantic of some params changes.
-    evmjit_create
+    evmjit_call,         ///< Request CALL.
+    evmjit_delegatecall, ///< Request DELEGATECALL. The value param ignored.
+    evmjit_callcode,     ///< Request CALLCODE.
+    evmjit_create        ///< Request CREATE. Semantic of some params changes.
 };
 
 /// Pointer to the callback function supporting EVM calls.
@@ -207,7 +221,7 @@ int evmjit_get_version();
 /// Opaque type representing a JIT instance.
 struct evmjit_instance;
 
-/// Creates JIT instance.
+/// Creates new JIT instance.
 ///
 /// Creates new JIT instance. Each instance must be destroyed in
 /// evmjit_destroy_instance() function.
@@ -215,14 +229,21 @@ struct evmjit_instance;
 /// application can create as many instances as wanted but there are no benefits
 /// of this strategy as instances will not share generated code.
 ///
-/// @params Pointers to callback functions.
-struct evmjit_instance* evmjit_create_instance(evmjit_query_func,
-                                               evmjit_store_storage_func,
-                                               evmjit_call_func,
-                                               evmjit_log_func);
+/// @param query_func    Pointer to query callback function. Nonnull.
+/// @param storage_func  Pointer to storage callback function. Nonnull.
+/// @param call_func     Pointer to call callback function. Nonnull.
+/// @param log_func      Pointer to log callback function. Nonnull.
+/// @return              Pointer to the created JIT instance.
+struct evmjit_instance* evmjit_create_instance(
+    evmjit_query_func query_func,
+    evmjit_store_storage_func storage_func,
+    evmjit_call_func call_func,
+    evmjit_log_func log_func);
 
-/// Destroys JIT instance.
-void evmjit_destroy_instance(struct evmjit_instance*);
+/// Destroys the JIT instance.
+///
+/// @param jit  The JIT instance to be destroyed.
+void evmjit_destroy_instance(struct evmjit_instance* jit);
 
 
 /// Configures the JIT instance.

@@ -8,13 +8,13 @@ union evmjit_variant query(struct evmjit_env* env,
                            union evmjit_variant arg) {
     union evmjit_variant result;
     switch (key) {
-    case evmjit_query_gas_limit: result.uint64 = 314; break;
+    case evmjit_query_gas_limit: result.int64 = 314; break;
 
     case evmjit_query_balance:
         result.uint256 = balance(env, arg.address);
         break;
 
-    default: result.uint64 = 0; break;
+    default: result.int64 = 0; break;
     }
     return result;
 }
