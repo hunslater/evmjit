@@ -13,8 +13,9 @@
 /// @defgroup EVMJITCAPI
 /// @{
 
-#include <stdint.h>  // Definition of uint64_t.
-#include <stddef.h>  // Definition of size_t.
+#include <stdint.h>   // Definition of uint64_t.
+#include <stddef.h>   // Definition of size_t.
+#include <stdbool.h>  // Definition of bool.
 
 /// Host-endian 256-bit integer.
 ///
@@ -224,18 +225,21 @@ struct evmjit_instance* evmjit_create_instance(evmjit_query_func,
 void evmjit_destroy_instance(struct evmjit_instance*);
 
 
-/// Configures a JIT instance.
+/// Configures the JIT instance.
 ///
-/// Allows modifying options of a JIT instance.
+/// Allows modifying options of the JIT instance.
 /// Options:
 /// - compatibility mode: frontier, homestead, metropolis, ...
 /// - code cache behavior: on, off, read-only, ...
 /// - optimizations,
 ///
-/// @todo int is probably not the best choice for params type. Would a c-string
-///       as char const* be better?
-/// @todo Is there a need for evmjit_get_option()?
-void evmjit_set_option(struct evmjit_instance*, int key, int value);
+/// @param jit    The JIT instance to be configured.
+/// @param name   The option name. Cannot be null.
+/// @param value  The new option value. Cannot be null.
+/// @return       True if the option set successfully.
+bool evmjit_set_option(struct evmjit_instance* jit,
+                       char const* name,
+                       char const* value);
 
 
 /// Generates and executes machine code for given EVM bytecode.
