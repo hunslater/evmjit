@@ -19,19 +19,23 @@
 /// Host-endian 256-bit integer.
 ///
 /// 32 bytes of data representing host-endian (that means little-endian almost
-/// all the time) 256-bit integer. This applies to the words[] order also.
+/// all the time) 256-bit integer. This applies to the words[] order as well.
 /// words[0] contains the 64 lowest precision bits, words[3] constains the 64
 /// highest precision bits.
 struct evmjit_uint256 {
     uint64_t words[4];
 };
 
-/// Ethereum address.
+/// 160-bit hash suitable for keeping an Ethereum address.
 struct evmjit_hash160 {
     char bytes[20];
 };
 
-/// 32 bytes of data. For EVM that means big-endian 256-bit integer.
+
+/// Big-endian 256-bit integer/hash.
+///
+/// 32 bytes of data. For EVM that means big-endian 256-bit integer. Values of
+/// this type are converted to host-endian values in EVMJIT.
 struct evmjit_hash256 {
     _Alignas(8) char bytes[32];
 };
@@ -117,13 +121,14 @@ union evmjit_variant {
 ///
 /// This callback function is used by the EVMJIT to query the host application
 /// about additional data required to execute EVM code.
-/// @param env  Pointer to execution environment managed by the host application.
+/// @param env  Pointer to execution environment managed by the host
+/// application.
 /// @param key  The kind of the query. See evmjit_query_key and defails below.
 /// @param arg  Addicional argument to the query. It has defined value only for
 ///             the subset of query keys.
 ///
 /// # Queries
-/// Key             | Arg      | Expected result (see members of evmjit_query_result union)
+/// Key             | Arg      | Expected result (see evmjit_query_result union)
 /// --------------- | -------- | ---------------
 /// gas price       |          | uint256
 /// address         |          | address
@@ -137,10 +142,9 @@ union evmjit_variant {
 /// code by address | address  | bytes
 /// balance         | address  | uint256
 /// storage         | uint256  | uint256?
-typedef union evmjit_variant (*evmjit_query_func)(
-    struct evmjit_env* env,
-    enum evmjit_query_key key,
-    union evmjit_variant arg);
+typedef union evmjit_variant (*evmjit_query_func)(struct evmjit_env* env,
+                                                  enum evmjit_query_key key,
+                                                  union evmjit_variant arg);
 
 
 /// Callback function for modifying the storage.
@@ -176,12 +180,13 @@ enum evmjit_call_kind {
 /// @return      If non-negative - the amount of gas left,
 ///              If negative - an exception ocurred during the call/create.
 ///              There is no need to set 0 address in the output in this case.
-typedef int64_t (*evmjit_call_func)(enum evmjit_call_kind kind,
-                                    int64_t gas,
-                                    struct evmjit_hash160 address,
-                                    struct evmjit_uint256 value,
-                                    struct evmjit_bytes_view input_data,
-                                    struct evmjit_mutable_bytes_view output_data);
+typedef int64_t (*evmjit_call_func)(
+    enum evmjit_call_kind kind,
+    int64_t gas,
+    struct evmjit_hash160 address,
+    struct evmjit_uint256 value,
+    struct evmjit_bytes_view input_data,
+    struct evmjit_mutable_bytes_view output_data);
 
 /// Pointer to the callback function supporting EVM logs.
 ///
@@ -264,12 +269,12 @@ void evmjit_destroy_result(struct evmjit_result);
 struct evmjit_uint256 balance(struct evmjit_env*,
                               struct evmjit_hash160 address);
 
-union evmjit_variant query(struct evmjit_env* env, enum evmjit_query_key key, union evmjit_variant arg) {
+union evmjit_variant query(struct evmjit_env* env,
+                           enum evmjit_query_key key,
+                           union evmjit_variant arg) {
     union evmjit_variant result;
     switch (key) {
-    case evmjit_query_gas_limit:
-        result.uint64 = 314;
-        break;
+    case evmjit_query_gas_limit: result.uint64 = 314; break;
 
     case evmjit_query_balance:
         result.uint256 = balance(env, arg.address);
@@ -282,9 +287,7 @@ union evmjit_variant query(struct evmjit_env* env, enum evmjit_query_key key, un
 
 /// Example how the API is supposed to be used.
 void example() {
-
-    struct evmjit_instance* jit =
-        evmjit_create_instance(query, 0, 0, 0);
+    struct evmjit_instance* jit = evmjit_create_instance(query, 0, 0, 0);
 
     char const code[] = "exec()";
     struct evmjit_bytes_view code_view = {code, sizeof(code)};
