@@ -13,9 +13,14 @@
 /// @defgroup evmjit
 /// @{
 
-#include <stdint.h>   // Definition of int64_t, uint64_t.
-#include <stddef.h>   // Definition of size_t.
-#include <stdbool.h>  // Definition of bool.
+#include <stdint.h>    // Definition of int64_t, uint64_t.
+#include <stddef.h>    // Definition of size_t.
+#include <stdbool.h>   // Definition of bool.
+#include <stdalign.h>  // Include alignas compatible with C++.
+
+#if __cplusplus
+extern "C" {
+#endif
 
 /// Host-endian 256-bit integer.
 ///
@@ -41,7 +46,7 @@ struct evmjit_hash160 {
 /// this type are converted to host-endian values in EVMJIT.
 struct evmjit_hash256 {
     /// The 32 bytes of the integer/hash. Memory aligned to 8 bytes.
-    _Alignas(8) char bytes[32];
+    alignas(8) char bytes[32];
 };
 
 /// Reference to non-mutable memory.
@@ -287,4 +292,8 @@ struct evmjit_result evmjit_execute(struct evmjit_instance* instance,
 /// Destroys execution result.
 void evmjit_destroy_result(struct evmjit_result);
 
+
+#if __cplusplus
+}
+#endif
 /// @}
