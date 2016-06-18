@@ -55,9 +55,7 @@ function(configure_llvm_project TARGET_NAME)
                        -DLLVM_TARGETS_TO_BUILD=X86
                        -DLLVM_INCLUDE_TOOLS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF
                        -DLLVM_INCLUDE_TESTS=OFF
-            BUILD_COMMAND cmake --build <BINARY_DIR> --config Release --target LLVMMCJIT
-            COMMAND cmake --build <BINARY_DIR> --config Release --target LLVMipo
-            COMMAND cmake --build <BINARY_DIR> --config Release --target LLVMX86CodeGen
+            BUILD_COMMAND cmake --build <BINARY_DIR> --config Release --target LLVMMCJIT\;LLVMipo\;LLVMX86CodeGen
             EXCLUDE_FROM_ALL TRUE
         )
 
