@@ -41,6 +41,7 @@ function(configure_llvm_project TARGET_NAME)
             set(DEFINES __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
         elseif (UNIX)
             set(SYSTEM_LIBS pthread z m tinfo dl)
+            set(DEFINES __STDC_LIMIT_MACROS __STDC_CONSTANT_MACROS)
         endif()
 
         include(ExternalProject)
